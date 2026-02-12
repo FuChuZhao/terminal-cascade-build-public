@@ -17,9 +17,9 @@ on:
         required: true
         default: 'terminal-cascade-visual-regression'
       scenario_set:
-        description: 'Scenario suite: core-10 | full-15'
+        description: 'Scenario suite: core-10 | full-15 | overlap-27'
         required: true
-        default: 'full-15'
+        default: 'overlap-27'
       capture_profile:
         description: 'Capture profile label'
         required: true
@@ -175,6 +175,7 @@ jobs:
             --expected-gnome-shell "${{ inputs.expected_gnome_shell }}"
 
       - name: Upload visual artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
