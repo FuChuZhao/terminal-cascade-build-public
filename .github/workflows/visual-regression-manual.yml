@@ -57,6 +57,13 @@ jobs:
           git fetch --depth 1 origin "${{ inputs.source_ref }}"
           git checkout --detach FETCH_HEAD
 
+      - name: Install visual dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow
+
       - name: Run cloud visual suite
         shell: bash
         run: |
