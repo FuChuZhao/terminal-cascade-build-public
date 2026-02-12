@@ -121,10 +121,15 @@ jobs:
           echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}"
           echo "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
           echo "GNOME_SHELL=$(gnome-shell --version 2>/dev/null || echo unavailable)"
+          echo "GNOME_SHELL_PROCESS=$(pgrep -fa 'gnome-shell --x11' | head -n1 || true)"
+          echo "ENABLED_EXTS=$(gnome-extensions list --enabled 2>/dev/null | tr '
+' ',' || true)"
           if [[ "${{ inputs.require_real_gui }}" != "true" ]]; then
             exit 0
           fi
           [[ -n "${DISPLAY:-}" ]] || { echo "missing DISPLAY" >&2; exit 1; }
+          pgrep -fa 'gnome-shell --x11' >/dev/null || { echo "gnome-shell process not running" >&2; exit 1; }
+          gnome-extensions list --enabled 2>/dev/null | grep -q 'terminal-cascade@okret' || { echo "terminal-cascade extension not enabled" >&2; exit 1; }
           [[ "${XDG_SESSION_TYPE:-}" == "${{ inputs.expected_session_type }}" ]] || {
             echo "session type mismatch: got=${XDG_SESSION_TYPE:-unset}, want=${{ inputs.expected_session_type }}" >&2
             exit 1
