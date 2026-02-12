@@ -122,8 +122,7 @@ jobs:
           echo "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
           echo "GNOME_SHELL=$(gnome-shell --version 2>/dev/null || echo unavailable)"
           echo "GNOME_SHELL_PROCESS=$(pgrep -fa 'gnome-shell --x11' | head -n1 || true)"
-          echo "ENABLED_EXTS=$(gnome-extensions list --enabled 2>/dev/null | tr '
-' ',' || true)"
+          echo "ENABLED_EXTS=$(gnome-extensions list --enabled 2>/dev/null | paste -sd ',' - || true)"
           if [[ "${{ inputs.require_real_gui }}" != "true" ]]; then
             exit 0
           fi
