@@ -1,0 +1,79 @@
+name: visual-regression-manual
+run-name: visual-regression/${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: 'Private source repo (owner/name)'
+        required: true
+        default: 'FuChuZhao/terminal-cascade-source-private'
+      source_ref:
+        description: 'Branch/tag/commit in source repo'
+        required: true
+        default: 'main'
+      artifact_name:
+        description: 'Artifact package name'
+        required: true
+        default: 'terminal-cascade-visual-regression'
+      scenario_set:
+        description: 'Scenario suite: core-10 | full-15'
+        required: true
+        default: 'full-15'
+      capture_profile:
+        description: 'Capture profile label'
+        required: true
+        default: 'simulated-v1'
+      request_id:
+        description: 'Unique request id for traceability'
+        required: true
+        default: 'req-manual'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Prepare SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SOURCE_REPO_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+        env:
+          SOURCE_REPO_SSH_KEY: ${{ secrets.SOURCE_REPO_SSH_KEY }}
+
+      - name: Clone private source repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-tags --depth 1 "git@github.com:${{ inputs.source_repo }}.git" source
+          cd source
+          git fetch --depth 1 origin "${{ inputs.source_ref }}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Run cloud visual suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          chmod +x tool/visual-capture/run-cloud-visual-suite.sh
+          ./tool/visual-capture/run-cloud-visual-suite.sh \
+            --scenario-set "${{ inputs.scenario_set }}" \
+            --artifact-dir "$RUNNER_TEMP/artifacts" \
+            --request-id "${{ inputs.request_id }}" \
+            --source-ref "${{ inputs.source_ref }}" \
+            --capture-profile "${{ inputs.capture_profile }}"
+
+      - name: Upload visual artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/artifacts
+          retention-days: 1
+          if-no-files-found: error
