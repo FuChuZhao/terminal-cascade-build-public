@@ -23,7 +23,7 @@ on:
       capture_profile:
         description: 'Capture profile label'
         required: true
-        default: 'real-gui-ubuntu2204-v1'
+        default: 'real-gui-ubuntu2204-v2'
       capture_backend:
         description: 'Capture backend: real-gui | simulated'
         required: true
@@ -32,10 +32,14 @@ on:
         description: 'Must run in real GUI desktop session'
         required: true
         default: 'true'
+      require_remote_runner:
+        description: 'Require GitHub-hosted remote runner'
+        required: true
+        default: 'true'
       runner_labels_json:
         description: 'Runner labels JSON array'
         required: true
-        default: '["self-hosted","linux","x64","ubuntu-22.04","gnome","x11"]'
+        default: '["ubuntu-22.04"]'
       expected_os:
         description: 'Expected OS descriptor'
         required: true
@@ -63,8 +67,20 @@ permissions:
 jobs:
   build-and-capture:
     runs-on: ${{ fromJson(inputs.runner_labels_json) }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
+      - name: Validate runner type is remote
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUNNER_ENVIRONMENT=${RUNNER_ENVIRONMENT:-unset}"
+          if [[ "${{ inputs.require_remote_runner }}" == "true" ]]; then
+            [[ "${RUNNER_ENVIRONMENT:-}" == "github-hosted" ]] || {
+              echo "runner is not github-hosted remote" >&2
+              exit 1
+            }
+          fi
+
       - name: Prepare SSH key
         shell: bash
         run: |
@@ -83,6 +99,19 @@ jobs:
           cd source
           GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git fetch --depth 1 origin "${{ inputs.source_ref }}"
           git checkout --detach FETCH_HEAD
+
+      - name: Install and start remote GUI desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          chmod +x tool/visual-capture/setup-remote-gui-session.sh
+          ./tool/visual-capture/setup-remote-gui-session.sh \
+            --env-file "$RUNNER_TEMP/tc-gui.env" \
+            --display ":99" \
+            --resolution "1920x1080x24" \
+            --terminal-count 6
+          cat "$RUNNER_TEMP/tc-gui.env" >> "$GITHUB_ENV"
 
       - name: Validate required desktop environment
         shell: bash
