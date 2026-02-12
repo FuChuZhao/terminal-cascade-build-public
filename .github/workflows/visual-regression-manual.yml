@@ -72,7 +72,6 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SOURCE_REPO_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
         env:
           SOURCE_REPO_SSH_KEY: ${{ secrets.SOURCE_REPO_SSH_KEY }}
 
@@ -80,9 +79,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --no-tags --depth 1 "git@github.com:${{ inputs.source_repo }}.git" source
+          GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone --no-tags --depth 1 "git@github.com:${{ inputs.source_repo }}.git" source
           cd source
-          git fetch --depth 1 origin "${{ inputs.source_ref }}"
+          GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git fetch --depth 1 origin "${{ inputs.source_ref }}"
           git checkout --detach FETCH_HEAD
 
       - name: Validate required desktop environment
