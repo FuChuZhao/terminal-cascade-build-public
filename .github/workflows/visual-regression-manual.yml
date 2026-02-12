@@ -23,7 +23,35 @@ on:
       capture_profile:
         description: 'Capture profile label'
         required: true
-        default: 'simulated-v1'
+        default: 'real-gui-ubuntu2204-v1'
+      capture_backend:
+        description: 'Capture backend: real-gui | simulated'
+        required: true
+        default: 'real-gui'
+      require_real_gui:
+        description: 'Must run in real GUI desktop session'
+        required: true
+        default: 'true'
+      runner_labels_json:
+        description: 'Runner labels JSON array'
+        required: true
+        default: '["self-hosted","linux","x64","ubuntu-22.04","gnome","x11"]'
+      expected_os:
+        description: 'Expected OS descriptor'
+        required: true
+        default: 'Ubuntu 22.04'
+      expected_session_type:
+        description: 'Expected XDG_SESSION_TYPE'
+        required: true
+        default: 'x11'
+      expected_desktop:
+        description: 'Expected XDG_CURRENT_DESKTOP'
+        required: true
+        default: 'ubuntu:GNOME'
+      expected_gnome_shell:
+        description: 'Expected gnome-shell version prefix'
+        required: true
+        default: 'GNOME Shell 42'
       request_id:
         description: 'Unique request id for traceability'
         required: true
@@ -34,8 +62,8 @@ permissions:
 
 jobs:
   build-and-capture:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ fromJson(inputs.runner_labels_json) }}
+    timeout-minutes: 45
     steps:
       - name: Prepare SSH key
         shell: bash
@@ -57,6 +85,37 @@ jobs:
           git fetch --depth 1 origin "${{ inputs.source_ref }}"
           git checkout --detach FETCH_HEAD
 
+      - name: Validate required desktop environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DISPLAY=${DISPLAY:-unset}"
+          echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}"
+          echo "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
+          echo "GNOME_SHELL=$(gnome-shell --version 2>/dev/null || echo unavailable)"
+          if [[ "${{ inputs.require_real_gui }}" != "true" ]]; then
+            exit 0
+          fi
+          [[ -n "${DISPLAY:-}" ]] || { echo "missing DISPLAY" >&2; exit 1; }
+          [[ "${XDG_SESSION_TYPE:-}" == "${{ inputs.expected_session_type }}" ]] || {
+            echo "session type mismatch: got=${XDG_SESSION_TYPE:-unset}, want=${{ inputs.expected_session_type }}" >&2
+            exit 1
+          }
+          [[ "${XDG_CURRENT_DESKTOP:-}" == *"${{ inputs.expected_desktop }}"* ]] || {
+            echo "desktop mismatch: got=${XDG_CURRENT_DESKTOP:-unset}, want~=${{ inputs.expected_desktop }}" >&2
+            exit 1
+          }
+          OS_STR="$(lsb_release -ds 2>/dev/null || true)"
+          [[ "$OS_STR" == *"${{ inputs.expected_os }}"* ]] || {
+            echo "os mismatch: got=$OS_STR, want~=${{ inputs.expected_os }}" >&2
+            exit 1
+          }
+          SHELL_STR="$(gnome-shell --version 2>/dev/null || true)"
+          [[ "$SHELL_STR" == *"${{ inputs.expected_gnome_shell }}"* ]] || {
+            echo "gnome-shell mismatch: got=$SHELL_STR, want~=${{ inputs.expected_gnome_shell }}" >&2
+            exit 1
+          }
+
       - name: Install visual dependencies
         shell: bash
         run: |
@@ -75,7 +134,13 @@ jobs:
             --artifact-dir "$RUNNER_TEMP/artifacts" \
             --request-id "${{ inputs.request_id }}" \
             --source-ref "${{ inputs.source_ref }}" \
-            --capture-profile "${{ inputs.capture_profile }}"
+            --capture-profile "${{ inputs.capture_profile }}" \
+            --capture-backend "${{ inputs.capture_backend }}" \
+            --require-real-gui "${{ inputs.require_real_gui }}" \
+            --expected-os "${{ inputs.expected_os }}" \
+            --expected-session-type "${{ inputs.expected_session_type }}" \
+            --expected-desktop "${{ inputs.expected_desktop }}" \
+            --expected-gnome-shell "${{ inputs.expected_gnome_shell }}"
 
       - name: Upload visual artifact
         uses: actions/upload-artifact@v4
